@@ -1,9 +1,7 @@
 import org.junit.Test
 import java.time.LocalDate
-import kotlin.test.assert
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
-import kotlin.test.containsAll
 
 class ReglaDiaParticularTest {
 
@@ -20,19 +18,6 @@ class ReglaDiaParticularTest {
         val mañana = hoy.plusDays(1)
         val paraEstaRegla = ReglaDiaParticular(mañana)
         niEnPedo { paraEstaRegla esFeriado hoy }
-
-    }
-
-    @Test
-    fun `iterar sobre fechas me devuelve solo las que están dentro del rango`() {
-        val inicio = LocalDate.of(2018, 1, 20)
-        val fin = LocalDate.of(2018, 3, 20)
-        val reglaDia20 = ReglaDiaDelMes(10)
-
-        val dias = diasEntre(20, inicio, fin)
-        val diasEsperados = (1..3).map { LocalDate.of(2018, it, 20) }.toTypedArray()
-
-        assert(dias) { containsAll(*diasEsperados) }
     }
 
     private fun niEnPedo(block: () -> Boolean) = assertFalse(null, block)

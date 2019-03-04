@@ -5,7 +5,7 @@ fun esFeriado(fecha: LocalDate, regla: Regla): Boolean {
 
     return when (regla) {
         is ReglaDiaParticular -> regla.diaFeriado.isEqual(fecha)
-        is ReglaDiaDeLaSemana -> fecha.numeroDiaDeLaSemana() == regla.numeroDiaDeLaSemana
+        is ReglaDiaDeLaSemana -> fecha.diaDeLaSemana() == regla.diaDeLaSemana
         is ReglaDiaDelMes -> fecha.dayOfMonth == regla.numeroDiaDelMes
         is ReglaCompuesta -> regla.reglas.any { esFeriado(fecha, it) }
         is ReglaSinFeriado -> false
@@ -15,35 +15,42 @@ fun esFeriado(fecha: LocalDate, regla: Regla): Boolean {
 fun feriadosEntre(fechaInicio: LocalDate, fechaFin: LocalDate, regla: Regla): List<LocalDate> {
     return when (regla) {
         is ReglaDiaParticular -> listOf(regla.diaFeriado)
-        is ReglaDiaDeLaSemana ->
-        is ReglaDiaDelMes -> diasEntre(regla.numeroDiaDelMes, fechaInicio, fechaFin)
+        is ReglaDiaDeLaSemana -> diasEntre(MismoDiaDeLaSemana(regla.diaDeLaSemana), fechaInicio, fechaFin)
+        is ReglaDiaDelMes -> diasEntre(MismoDiaDelMes(regla.numeroDiaDelMes), fechaInicio, fechaFin)
         is ReglaCompuesta -> regla.reglas.flatMap { feriadosEntre(fechaInicio, fechaFin, it) }
         is ReglaSinFeriado -> emptyList()
     }
 }
 
-fun diasEntre(numeroDiaDelMes: Int, fechaInicio: LocalDate, fechaFin: LocalDate): List<LocalDate> {
-    val primerDia: LocalDate = fechaInicio.withDayOfMonth(numeroDiaDelMes)
+sealed class CriterioIteracion(val semilla: (LocalDate, LocalDate) -> LocalDate, val iterador: (LocalDate) -> LocalDate)
 
-    return generateSequence(primerDia) { it.plusMonths(1) }
-        .takeWhile { it.isBefore(fechaFin) or it.isEqual(fechaFin) }
+data class MismoDiaDelMes(val diaDelmes: Int) :
+    CriterioIteracion({ inicio, _ -> inicio.withDayOfMonth(diaDelmes) }, { it.plusMonths(1) })
+
+data class MismoDiaDeLaSemana(val diaDeLaSemana: DiaDeLaSemana) :
+    CriterioIteracion({ inicio, _ -> inicio.anterior(diaDeLaSemana) }, { it.plusWeeks(1) })
+
+
+fun diasEntre(criterioIteracion: CriterioIteracion, fechaInicio: LocalDate, fechaFin: LocalDate): List<LocalDate> {
+    return generateSequence(criterioIteracion.semilla(fechaInicio, fechaFin), criterioIteracion.iterador)
+        .filter { it.isAfterEquals(fechaInicio) }
+        .takeWhile { it.isBeforeEquals(fechaFin) }
         .toList()
 }
 
-
-fun diasEntre2(numeroDiaDeLaSemana: Int, fechaInicio: LocalDate, fechaFin: LocalDate): List<LocalDate> {
-    val primerDia: LocalDate = fechaInicio.withDayOfMonth(numeroDiaDelMes)
-
-    return generateSequence(primerDia) { it.plusMonths(1) }
-        .takeWhile { it.isBefore(fechaFin) or it.isEqual(fechaFin) }
-        .toList()
+private fun LocalDate.anterior(diaDeLaSemana: DiaDeLaSemana): LocalDate {
+    var fecha = this
+    while (fecha.diaDeLaSemana() != diaDeLaSemana) {
+        fecha = fecha.minusDays(1)
+    }
+    return fecha
 }
 
 sealed class Regla
 
 data class ReglaDiaParticular(val diaFeriado: LocalDate) : Regla()
 
-data class ReglaDiaDeLaSemana(val numeroDiaDeLaSemana: DiaDeLaSemana) : Regla()
+data class ReglaDiaDeLaSemana(val diaDeLaSemana: DiaDeLaSemana) : Regla()
 
 data class ReglaDiaDelMes(val numeroDiaDelMes: Int) : Regla()
 
@@ -58,11 +65,15 @@ enum class DiaDeLaSemana {
     JUEVES,
     VIERNES,
     SABADO,
-    DOMINGO
+    DOMINGO;
 }
 
-fun LocalDate.numeroDiaDeLaSemana(): DiaDeLaSemana = DiaDeLaSemana.values()[this.dayOfWeek.value]
+private fun LocalDate.isBeforeEquals(fecha: LocalDate): Boolean =
+    this.isEqual(fecha) or this.isBefore(fecha)
 
-fun ClosedRange<LocalDate>.iterator(): Iterator<LocalDate> = TODO()
+private fun LocalDate.isAfterEquals(fecha: LocalDate): Boolean =
+    this.isEqual(fecha) or this.isAfter(fecha)
+
+private fun LocalDate.diaDeLaSemana(): DiaDeLaSemana = DiaDeLaSemana.values()[this.dayOfWeek.value - 1]
 
 infix fun Regla.esFeriado(fecha: LocalDate): Boolean = esFeriado(fecha, this)
